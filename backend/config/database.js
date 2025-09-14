@@ -1,23 +1,20 @@
-const mysql = require("mysql2");
-require("dotenv").config();
+// backend/config/db.js
+const mongoose = require('mongoose');
+require('dotenv').config();
 
-const connectDB = async() => {
-    try {
-        const connection = await mysql.createConnection({
-            host: process.env.DB_HOST || '127.0.0.1',
-            port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
-            user: process.env.DB_USER || 'root',
-            password: process.env.DB_PASS || '',
-            database: process.env.DB_NAME || 'pixora'
-        })
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/pixora';
 
-        console.log("Database Connection Succesfull");
-        return connection;
-        
-    } catch (error) {
-        console.error("Database Connection Failed");
-        process.exit(1);
-    }
-}
+const connectDB = async () => {
+  try {
+    await mongoose.connect(MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log("Database connected:", MONGODB_URI.split("@")[1]);
+  } catch (err) {
+    console.error('Database connection error:', err.message);
+    process.exit(1);
+  }
+};
 
 module.exports = connectDB;

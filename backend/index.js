@@ -1,3 +1,5 @@
+// date +%Y%m%d%H%M%S
+
 require("dotenv").config();
 const express = require("express");
 
@@ -7,8 +9,7 @@ app.use(express.json());
 
 const connectDB = require("./config/database");
 
-let db;
-db = connectDB();
+connectDB();
 
 app.get("/",(req,res) => {
     res.send("Pixora Backend is running");

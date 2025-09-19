@@ -1,4 +1,3 @@
-// backend/models/User.js
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema(
@@ -64,11 +63,26 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Profile',
       default: null
+    },
+
+    // For password reset
+    resetPasswordToken: {
+      type: String,
+      default: null,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      default: null,
     }
+
   },
   {
     timestamps: true // createdAt, updatedAt
   }
 );
+
+// Indexing to optimize DB queries
+userSchema.index({ email: 1 });           // Fast login queries
+userSchema.index({ username: 1 });        // Quick profile lookups
 
 module.exports = mongoose.model('User', userSchema);

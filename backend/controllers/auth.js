@@ -3,6 +3,8 @@ const OTP = require("../models/Otp");
 const otpGenerator = require("otp-generator");
 const Profile = require("../models/Profile");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+require("dotenv").config();
 
 exports.sendOTP = async(req,res) => {
     try {
@@ -97,7 +99,8 @@ exports.singUp = async (req,res) => {
         }
 
         // check if user already exists
-        const existingUser = await User.findOne({$or:[{email},{username}]});
+        const emailNorm = String(email).toLowerCase().trim();
+        const existingUser = await User.findOne({$or:[{email: emailNorm},{username}]});
         if(existingUser){
             return res.status(400).json({
                 success: false,
@@ -134,7 +137,7 @@ exports.singUp = async (req,res) => {
 
         const user = await User.create({
             username,
-            email,
+            email: emailNorm,
             password_hash: hashedPassword,
             fullName,
         })
@@ -166,6 +169,84 @@ exports.singUp = async (req,res) => {
         return res.status(500).json({
             success: false,
             message: "Internal server error"
+        })
+    }
+};
+
+exports.login = async(req,res) => {
+    try {
+        
+        const {email,password} = req.body;
+
+        // validate input
+        if(!email || !password){
+            return res.status(400).json({
+                success: false,
+                message: "Email and Password are required",
+            })
+        }
+
+        // check if user exists
+        const emailNorm = String(email).toLowerCase().trim();
+        const user = await User.findOne({email: emailNorm}).populate("profile");
+        if(!user){
+            return res.status(404).json({
+                success: false,
+                message: "User not found, Please sing up first",
+            });
+        }
+
+        // compare password
+        const isMatch = await bcrypt.compare(password, user.password_hash);
+        if(!isMatch){
+            return res.status(401).json({
+                success: false,
+                message: "Invalid credentails",
+            })
+        }
+
+        // JWT payload
+        const payload = {
+            id: user._id,
+            username: user.username,
+            email: user.email,
+            role: user.role
+        };
+
+        // create jwt-token
+        const token = jwt.sign(payload, process.env.JWT_SECRET,{
+            expiresIn: "2h",
+        });
+
+        // set cookie
+        const options = {
+            expires: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), //3 days
+            httpOnly: true, //cookie only accesiblee by server
+            secure: process.env.NODE_ENV === "production",  //http request in dev and http in prod
+            sameSite: "strict",
+        };
+
+        const userResponse = {
+            id: user._id,
+            username: user.username,
+            email: user.email,
+            fullName: user.fullName,
+            role: user.role,
+            profile: user.profile
+        };
+
+        res.cookie("token",token,options).status(200).json({
+            success: true,
+            message: "Logged in Successfully",
+            token,
+            user: userResponse,
+        });
+
+    } catch (error) {
+        console.error("Login Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error",
         })
     }
 };

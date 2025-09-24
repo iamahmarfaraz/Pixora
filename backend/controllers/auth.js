@@ -4,6 +4,8 @@ const otpGenerator = require("otp-generator");
 const Profile = require("../models/Profile");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const Session = require("../models/Session");
 require("dotenv").config();
 
 exports.sendOTP = async(req,res) => {
@@ -218,9 +220,30 @@ exports.login = async(req,res) => {
             expiresIn: "2h",
         });
 
+        // refresh token for session model
+        const refreshToken = crypto.randomBytes(40).toString("hex");
+        const refreshTokenHash = crypto.createHash("sha256")
+        .update(refreshToken)
+        .digest("hex");
+
+        await Session.create({
+            user: user._id,
+            refreshTokenHash,
+            userAgent: req.get("user-agent") || null,
+            ip: req.ip,
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        });
+
         // set cookie
         const options = {
             expires: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), //3 days
+            httpOnly: true, //cookie only accesiblee by server
+            secure: process.env.NODE_ENV === "production",  //http request in dev and http in prod
+            sameSite: "strict",
+        };
+
+        const options2 = {
+            expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), //30 days
             httpOnly: true, //cookie only accesiblee by server
             secure: process.env.NODE_ENV === "production",  //http request in dev and http in prod
             sameSite: "strict",
@@ -235,7 +258,9 @@ exports.login = async(req,res) => {
             profile: user.profile
         };
 
-        res.cookie("token",token,options).status(200).json({
+        res.cookie("token",token,options)
+        .cookie("refreshToken", refreshToken,options2)
+        .status(200).json({
             success: true,
             message: "Logged in Successfully",
             token,
@@ -250,4 +275,80 @@ exports.login = async(req,res) => {
         })
     }
 };
+
+exports.refresh = async (req, res) => {
+    try {
+        
+        // extract refreshToken from cookie
+        const {refreshToken: raw} = req.cookies || {};
+        if(!raw){
+            return res.status(401).json({
+                success: false,
+                message: "Refresh token missing"
+            })
+        }
+
+        // hash to refreshToken to match it in DB
+        const hash = crypto.createHash('sha256').update(String(raw)).digest('hex');
+
+        // find active session
+        const session = await Session.findOne({
+            refreshTokenHash: hash,
+            revokedAt: null,
+            expiresAt: {$gt: new Date()}
+        }).populate('user');
+
+        if(!session || !session.user){
+            res.clearCookie('token');
+            res.clearCookie('refreshToken');
+            return res.status(401).json({
+                success: false,
+                message: "Refresh token invalid or expired"
+            })
+        }
+
+        // generate new jwt token
+        const user = session.user;
+        const payload = {
+            id: user._id,
+            username: user.username,
+            email: user.email,
+            role: user.role
+        };
+
+        const newJWTToken = jwt.sign(payload, process.env.JWT_SECRET,{
+            expiresIn: '2h'
+        });
+
+        const jwtOption = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge : 2 * 60 * 60 * 1000 //2h
+        }
+
+        const refreshTokenOption = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge : 30 * 60 * 60 * 1000 //2h
+        }
+
+        return res.cookie('token', newJWTToken, jwtOption)
+        .cookie('refreshToken', raw, refreshTokenOption)
+        .status(200).json({
+            success: true,
+            token: newJWTToken
+        });
+
+    } catch (error) {
+        console.error("Refresh Token Error: ",error);
+        res.clearCookie('token');
+        res.clearCookie('refreshToken');
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server error"
+        })
+    }
+}
 

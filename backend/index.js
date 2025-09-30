@@ -6,6 +6,8 @@ const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const connectDB = require("./config/database");
 const PORT = process.env.PORT || 8080;
+const passport = require("passport");
+require("./config/passport")
 
 const app = express();
 
@@ -19,6 +21,7 @@ app.use(
         credentials: true,  //allow cookie to be send
     })
 )
+app.use(passport.initialize());
 
 connectDB();
 

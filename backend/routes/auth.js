@@ -7,8 +7,9 @@ const { sendOTP, singUp, login, refresh, logout, googleCallback,
 
 const {auth} = require("../middlewares/auth");
 const { getSession, terminateSession, terminateAllOtherSessions, terminateAllSessions } = require("../controllers/session");
+const { otpLimiter } = require("../middlewares/rateLimiter");
 
-router.post("/send-otp", sendOTP);
+router.get("/send-otp", otpLimiter, sendOTP);
 
 // signup
 router.post("/signup", singUp);
@@ -38,7 +39,7 @@ router.get("/oauth/google/callback",
 );
 
 // resetpass token
-router.post("/forgot-password", forgotPassword);
+router.post("/forgot-password", otpLimiter, forgotPassword);
 
 // reset password
 router.post("/reset-password/:token", resetPassword);

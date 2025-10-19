@@ -12,6 +12,8 @@ require("./config/passport")
 const app = express();
 
 const authRoutes = require("./routes/auth");
+const profileRoutes = require("./routes/profile");
+const postRoutes = require("./routes/post");
 
 app.use(express.json());
 app.use(cookieParser());
@@ -31,6 +33,8 @@ app.get("/",(req,res) => {
 
 // ROUTES
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/profile", profileRoutes);
+app.use("/api/v1/post", postRoutes);
 
 app.listen(PORT, ()=>{
     console.log(`Server is Up and Running on http://localhost:${PORT}`);

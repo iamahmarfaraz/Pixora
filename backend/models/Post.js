@@ -1,5 +1,21 @@
 const mongoose = require("mongoose");
 
+const mediaSchema = new mongoose.Schema({
+  url: {
+    type: String,
+    required: true,
+  },
+  type: {
+    type: String,
+    enum: ["image", "video"],
+    required: true,
+  },
+  order: {
+    type: Number,
+    default: 0
+  }
+});
+
 const postSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
@@ -10,14 +26,11 @@ const postSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
-  mediaUrl: {
-    type: String,    // Cloudinary / S3 URL
-    required: true,
-  },
-  mediaType: {
+  media: [mediaSchema],
+  postType: {
     type: String,
-    enum: ["image", "video"],
-    required: true,
+    enum: ["post", "reel"],
+    default: "post"
   },
   taggedUsers: [
     {

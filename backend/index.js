@@ -25,8 +25,6 @@ app.use(
 )
 app.use(passport.initialize());
 
-connectDB();
-
 app.get("/",(req,res) => {
     res.send("Pixora Backend is running");
 })
@@ -35,6 +33,21 @@ app.get("/",(req,res) => {
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/profile", profileRoutes);
 app.use("/api/v1/post", postRoutes);
+
+const startServer = async () => {
+  try {
+    await connectDB();
+    console.log("Database connected successfully");
+
+    // Register listener after DB is ready
+    require("./listeners/notificationListener")
+    console.log("Notification listener registered");
+  } catch (error) {
+    console.error("Database connection failed:", error);
+    process.exit(1);
+  }
+};
+startServer();
 
 app.listen(PORT, ()=>{
     console.log(`Server is Up and Running on http://localhost:${PORT}`);

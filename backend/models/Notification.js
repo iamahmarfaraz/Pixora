@@ -47,6 +47,12 @@ const notificationSchema = new mongoose.Schema({
   // small payload for UI (avoid heavy embeds)
   data: { type: Object, default: {} },
 
+  // aggregate notify
+  actors: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+
   // read/delivery state
   isRead: { type: Boolean, default: false, index: true },
   isDelivered: { type: Boolean, default: false },

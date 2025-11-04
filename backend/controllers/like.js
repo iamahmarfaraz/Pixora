@@ -15,7 +15,7 @@ exports.togglePostLike = async (req, res) => {
             })
         }
 
-        const post = await Post.findById(postId).select("user");
+        const post = await Post.findById(postId).select("user postType");
         if(!post){
             return res.status(404).json({
                 success: false,
@@ -36,14 +36,15 @@ exports.togglePostLike = async (req, res) => {
             eventBus.emit("post.unliked", {
                 postId,
                 actorId: userId,
-                postOwnerId: post.user
+                postOwnerId: post.user,
+                postType: post.postType || "post"
             })
 
             const likeCount = await Like.countDocuments({refType: "Post", refId: postId});
 
             return res.status(200).json({
                 success: true,
-                message: "Post unliked",
+                message: `${post.postType === "reel" ? "Reel" : "Post"} unliked`,
                 liked: false,
                 likeCount,
             })
@@ -61,11 +62,12 @@ exports.togglePostLike = async (req, res) => {
             postId,
             actorId: userId,
             postOwnerId: post.user,
+            postType: post.postType || "post"
         })
 
         return res.status(200).json({
             success: true,
-            message: "Post liked",
+            message: `${post.postType === "reel" ? "Reel" : "Post"} liked`,
             liked: true,
             likeCount
         })

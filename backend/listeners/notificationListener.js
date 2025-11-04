@@ -2,18 +2,20 @@ const eventBus = require("../utils/eventBus");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const Post = require("../models/Post");
+const Comment = require("../models/Comment");
 
-function buildLikePreview(usernames){
+function buildLikePreview(usernames, postType = "post"){
     const total = usernames.length;
+    const noun = postType === "reel" ? "reel" : "post";
     if(total === 0)return '';
-    if(total === 1)return `${usernames[0]} liked your post`
-    if(total === 2)return `${usernames[0]} and ${usernames[1]} liked your post`
+    if(total === 1)return `${usernames[0]} liked your ${noun}`
+    if(total === 2)return `${usernames[0]} and ${usernames[1]} liked your ${noun}`
     const others = total - 2;
-    return `${usernames[0]}, ${usernames[1]} and ${others} others liked your post`
+    return `${usernames[0]}, ${usernames[1]} and ${others} others liked your ${noun}`
 }
 
 // someone liked a post
-eventBus.on("post.liked", async ({postId, actorId, postOwnerId}) => {
+eventBus.on("post.liked", async ({postId, actorId, postOwnerId, postType}) => {
     try {
          console.log("Event received: post.liked", { postId, actorId, postOwnerId });
         if(String(actorId) === String(postOwnerId))return;
@@ -42,7 +44,7 @@ eventBus.on("post.liked", async ({postId, actorId, postOwnerId}) => {
                 refId: postId,
                 actors: [actorId],
                 data: {
-                    preview: buildLikePreview(usernames),
+                    preview: buildLikePreview(usernames, postType),
                     actorAvatar: [actor.avatarUrl || null],
                     caption: post?.caption ? post.caption.length > 10 ? post.caption.slice(0,20) + "..." : post.caption : "",
                 },
@@ -63,7 +65,7 @@ eventBus.on("post.liked", async ({postId, actorId, postOwnerId}) => {
         const usernames = firstTwoLikersDocs.map(liker => liker.username);
 
         notification.data = {
-            preview: buildLikePreview(usernames),
+            preview: buildLikePreview(usernames, postType),
             actorAvatar: firstTwoLikersDocs.map(liker => liker.avatarUrl || null),
             caption: post?.caption ? post.caption.length > 10 ? post.caption.slice(0,20) + "..." : post.caption : "",
         }
@@ -78,7 +80,7 @@ eventBus.on("post.liked", async ({postId, actorId, postOwnerId}) => {
     }
 })
 
-eventBus.on("post.unliked", async({postId, actorId, postOwnerId}) => {
+eventBus.on("post.unliked", async({postId, actorId, postOwnerId, postType}) => {
     try {
         
         const notification = await Notification.findOne({
@@ -104,7 +106,7 @@ eventBus.on("post.unliked", async({postId, actorId, postOwnerId}) => {
         const usernames = firstTwoLikersDocs.map(liker => liker.username);
 
         notification.data = {
-            preview: buildLikePreview(usernames),
+            preview: buildLikePreview(usernames, postType),
             actorAvatar: firstTwoLikersDocs.map(liker => liker.avatarUrl || null),
             caption: post?.caption ? post.caption.length > 10 ? post.caption.slice(0,20) + "..." : post.caption : "",
         }
@@ -114,5 +116,61 @@ eventBus.on("post.unliked", async({postId, actorId, postOwnerId}) => {
 
     } catch (error) {
         console.error("Notification Listner error (Post.unliked: ", error);
+    }
+})
+
+eventBus.on("comment.created", async ({postId, commentId, actorId, postOwnerId, content, parentComment}) => {
+    try {
+        
+        if(String(actorId) === String(postOwnerId))return;
+
+        const [actor, post] = await Promise.all([
+            User.findById(actorId).select("username avatarUrl").lean(),
+            Post.findById(postId).select("caption postType").lean()
+        ]) 
+        if(!actor || !post)return;
+
+        const shortComment = content?.length > 30 ? content.slice(0,30) + "..." : content;
+        const shortCaption = post.caption ? (post.caption.length > 30 ? post.caption.slice(0,30) + "..." : post.caption) : "";
+        const postLabel = post.postType === "reel" ? "reel" : "post";
+
+        await Notification.create({
+            user: postOwnerId,
+            actor: actorId,
+            type: "COMMENT",
+            refType: "Comment",
+            refId: commentId,
+            data: {
+                preview: `${actor.username} commented on your ${postLabel}: "${shortComment}"`,
+                actorAvatar: [actor.avatarUrl || null],
+                caption: shortCaption
+            },
+            actionUrl: `/post/${postId}#comment-${commentId}`
+        })
+
+        if(parentComment){
+            const parent = await Comment.findById(parentComment).select("user").lean();
+            if(parent && String(parent.user) !== String(actorId) && String(parent.user) !== String(postOwnerId)){
+                await Notification.create({
+                    user: parent.user,
+                    actor: actorId,
+                    type: "REPLY",
+                    refType: "Comment",
+                    refId: commentId,
+                    data: {
+                        preview: `${actor.username} replied to your comment: "${shortComment}"`,
+                        actorAvatar: [actor.avatarUrl || null],
+                        caption: shortCaption
+                    },
+                    actionUrl: `/post/${postId}#comment-${commentId}`
+                })
+            }
+        }
+
+        console.log(`Notification created for comment: ${commentId}`);
+        
+
+    } catch (error) {
+        console.error("Notification Listner error (comment.created: ", error);
     }
 })

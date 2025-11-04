@@ -21,6 +21,24 @@ exports.createPost = async (req, res) => {
             })
         }
 
+         // Reel upload validation
+        if (postType === "reel") {
+            if (files.length > 1) {
+                return res.status(400).json({
+                success: false,
+                message: "A reel can contain only one video file.",
+                });
+            }
+
+            const isVideo = files[0].mimetype.startsWith("video");
+            if (!isVideo) {
+                return res.status(400).json({
+                success: false,
+                message: "A reel must be a video file.",
+                });
+            }
+        }
+
         let taggedIds = [];
         if(taggedUsers){
             if(typeof taggedUsers === "string"){
@@ -268,6 +286,41 @@ exports.getSinglePost = async (req, res) => {
 
     } catch (error) {
         console.error("Get Single Post Error: ",error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        })
+    }
+};
+
+exports.getReelsFeed = async (req, res) => {
+    try {
+        
+        const limit = parseInt(req.query.limit) || 20;
+        const cursor = req.query.cursor;
+
+        const query = {postType: "reel"};
+        if(cursor) query._id = {$lt: cursor};
+
+        const reels = await Post.find(query)
+        .sort({_id: -1})
+        .limit(limit)
+        .populate("user", "username avatarUrl fullName")
+        .populate("taggedUsers", "username avatarUrl")
+        .lean();
+
+        const nextCursor = reels.length > 0 ? reels[reels.length - 1]._id : null;
+
+        return res.status(200).json({
+            success: true,
+            message: "Reel fetched successfully",
+            count: reels.length,
+            nextCursor,
+            reels
+        })
+
+    } catch (error) {
+        console.error("Reel Feed Fetch Error: ",error);
         return res.status(500).json({
             success: false,
             message: "Internal server error"

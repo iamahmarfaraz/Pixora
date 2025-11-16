@@ -4,8 +4,8 @@ const router = express.Router();
 const { auth } = require("../middlewares/auth");
 const upload = require("../middlewares/upload");
 const { createPost, getFeed, updatePost, deletePost, getSinglePost, getReelsFeed } = require("../controllers/post");
-const { togglePostLike } = require("../controllers/like");
-const { createComment } = require("../controllers/comment");
+const { togglePostLike, toggleCommentLike } = require("../controllers/like");
+const { createComment, deleteComment } = require("../controllers/comment");
 
 // create post
 router.post("/create", auth, upload.array("media",10), createPost);
@@ -30,5 +30,11 @@ router.post("/:postId/like", auth, togglePostLike);
 
 // create Comment or Comment reply
 router.post("/:postId/comment", auth, createComment);
+
+// like comment
+router.post("/comments/:commentId/like", auth, toggleCommentLike);
+
+// delete comment or replt
+router.delete("/comments/:commentId", auth, deleteComment);
 
 module.exports = router;

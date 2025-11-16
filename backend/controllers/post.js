@@ -224,10 +224,30 @@ exports.deletePost = async (req,res) => {
 
         await Post.findByIdAndDelete(postId);
 
+        const deletedComments = await Comment.find({ post: postId }).select("_id");
+        const commentIds = deletedComments.map(c => c._id);
+
+        // Delete all likes tied to this post or its comments
+        await Like.deleteMany({
+        $or: [
+            { refType: "Post", refId: postId },
+            { refType: "Comment", refId: { $in: commentIds } }
+        ]
+        });
+
+        await Notification.deleteMany({
+            $or: [
+                { refType: "Post", refId: postId },
+                { refType: "Comment", refId: { $in: commentIds } }
+            ]
+        });
+
+        await Comment.deleteMany({ post: postId });
+
         return res.status(200).json({
-            success: false,
-            message: "Post deleted successfully",
-        })
+        success: true,
+        message: "Post and all related comments and likes deleted successfully"
+        });
 
     } catch (error) {
         console.error("Delete Post error: ",error);
